@@ -49,46 +49,41 @@ export class PredictionService {
           throw new Error("User has already placed a prediction for this round");
         }
 
-        const decimalAmount = toDecimal(amount);
-        const amountNum = toNumber(decimalAmount);
-
-        const user = await tx.user.findUnique({
-          where: { id: userId },
-          select: { walletAddress: true },
-        });
-
-        if (!user) {
-          throw new Error("User not found");
-        }
-
-        if (round.mode === "UP_DOWN" && !side) {
-          throw new Error("Side (UP/DOWN) is required for UP_DOWN mode");
-        }
-
-        if (round.mode === "LEGENDS") {
+        // 3. Validate mode-specific params early, before any writes
+        if (round.mode === "UP_DOWN") {
+          if (!side) {
+            throw new Error("Side (UP/DOWN) is required for UP_DOWN mode");
+          }
+        } else if (round.mode === "LEGENDS") {
           if (!priceRange) {
             throw new Error("Price range is required for LEGENDS mode");
           }
-
           const ranges = round.priceRanges as any[];
           const validRange = ranges.find(
             (r) => r.min === priceRange.min && r.max === priceRange.max,
           );
-
           if (!validRange) {
             throw new Error("Invalid price range");
           }
+        } else {
+          throw new Error("Invalid game mode");
         }
 
-        const validatedSide = round.mode === "UP_DOWN" ? side : undefined;
-        const validatedPriceRange = round.mode === "LEGENDS" ? priceRange : undefined;
+        const decimalAmount = toDecimal(amount);
+        const amountNum = toNumber(decimalAmount);
 
-        // 3. Update user balance ATOMICALLY with sufficiency check
+        // 4. Check user exists
+        const existingUser = await tx.user.findUnique({ where: { id: userId } });
+        if (!existingUser) {
+          throw new Error("User not found");
+        }
+
+        // 5. Update user balance ATOMICALLY with sufficiency check
         // This prevents race conditions where balance is checked then deducted
-        await tx.user.update({
-          where: { 
+        const user = await tx.user.update({
+          where: {
             id: userId,
-            virtualBalance: { gte: amountNum }
+            virtualBalance: { gte: amountNum },
           },
           data: {
             virtualBalance: { decrement: amountNum },
@@ -100,7 +95,7 @@ export class PredictionService {
           throw err;
         });
 
-        // 4. Create prediction record
+        // 6. Create prediction record
         const prediction = await tx.prediction.create({
           data: {
             roundId,
@@ -111,7 +106,7 @@ export class PredictionService {
           },
         });
 
-        // 5. Update round pools
+        // 7. Update round pools
         if (round.mode === "UP_DOWN") {
           await tx.round.update({
             where: { id: roundId },
@@ -121,9 +116,9 @@ export class PredictionService {
             },
           });
 
-          // 6. External Soroban call: Ordering ensures DB is prepared but rolls back if chain call fails
+          // 8. External Soroban call: Ordering ensures DB is prepared but rolls back if chain call fails
           // This is our rollback strategy: DB transaction will only commit if placeBet succeeds.
-          await sorobanService.placeBet(user.walletAddress, amount, validatedSide!);
+          await sorobanService.placeBet(user.walletAddress, amount, side!);
 
           logger.info(
             `Prediction submitted (UP_DOWN): user=${userId}, round=${roundId}, side=${side}`,
@@ -133,7 +128,7 @@ export class PredictionService {
           // Update price range pool (Note: JSON updates are not as atomic as increments in Prisma,
           // but being inside the same transaction with the round read above provides baseline safety)
           const updatedRanges = ranges.map((r) => {
-            if (r.min === validatedPriceRange!.min && r.max === validatedPriceRange!.max) {
+            if (r.min === priceRange!.min && r.max === priceRange!.max) {
               return { ...r, pool: r.pool + amount };
             }
             return r;
@@ -147,10 +142,8 @@ export class PredictionService {
           });
 
           logger.info(
-            `Prediction submitted (LEGENDS): user=${userId}, round=${roundId}, range=${JSON.stringify(validatedPriceRange)}`,
+            `Prediction submitted (LEGENDS): user=${userId}, round=${roundId}, range=${JSON.stringify(priceRange)}`,
           );
-        } else {
-          throw new Error("Invalid game mode");
         }
 
         return prediction;
