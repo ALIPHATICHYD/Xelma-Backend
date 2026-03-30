@@ -23,6 +23,7 @@ interface PriceRange {
   pool: number;
 }
 
+<<<<<<< HEAD
 function isValidRange(range: any): range is PriceRange {
   return (
     range &&
@@ -31,6 +32,9 @@ function isValidRange(range: any): range is PriceRange {
     range.min < range.max
   );
 }
+=======
+import { RoundLifecycleOutcome } from "../types/round.types";
+>>>>>>> main
 
 export class ResolutionService {
   /**
@@ -51,15 +55,21 @@ export class ResolutionService {
       });
 
       if (!round) {
-        throw new Error("Round not found");
+        return { outcome: RoundLifecycleOutcome.NO_OP };
       }
 
       if (round.status === "RESOLVED") {
-        throw new Error("Round already resolved");
+        return {
+          outcome: RoundLifecycleOutcome.ALREADY_RESOLVED,
+          round: await prisma.round.findUnique({
+            where: { id: roundId },
+            include: { predictions: true },
+          }),
+        };
       }
 
       if (round.status !== "LOCKED" && round.status !== "ACTIVE") {
-        throw new Error("Round must be locked or active to resolve");
+        return { outcome: RoundLifecycleOutcome.NO_OP };
       }
 
       // Mode-specific resolution
@@ -103,12 +113,15 @@ export class ResolutionService {
         });
       }
 
-      return await prisma.round.findUnique({
-        where: { id: roundId },
-        include: {
-          predictions: true,
-        },
-      });
+      return {
+        outcome: RoundLifecycleOutcome.UPDATED,
+        round: await prisma.round.findUnique({
+          where: { id: roundId },
+          include: {
+            predictions: true,
+          },
+        }),
+      };
     } catch (error) {
       logger.error("Failed to resolve round:", error);
       throw error;
