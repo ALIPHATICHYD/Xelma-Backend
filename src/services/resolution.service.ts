@@ -15,12 +15,8 @@ import {
   decFixed,
 } from "../utils/decimal.util";
 import { Decimal } from "@prisma/client/runtime/library";
-
-interface PriceRange {
-  min: number;
-  max: number;
-  pool: number;
-}
+import { RoundPriceRange, UserPriceRange } from "../types/round.types";
+import { parseRoundPriceRanges, validateUserPriceRange } from "../utils/price-range.util";
 
 export class ResolutionService {
   /**
@@ -251,7 +247,7 @@ export class ResolutionService {
     finalPrice: number,
   ): Promise<void> {
     const finalPriceDec = new Decimal(finalPrice);
-    const priceRanges = round.priceRanges as PriceRange[];
+    const priceRanges = parseRoundPriceRanges(round.priceRanges);
 
     // Find winning range
     const winningRange = priceRanges.find((range) => {
@@ -302,7 +298,12 @@ export class ResolutionService {
     }
 
     for (const prediction of round.predictions) {
-      const predictionRange = prediction.priceRange as any;
+      const priceRangeValidation = validateUserPriceRange(prediction.priceRange);
+      if (!priceRangeValidation.valid) {
+        logger.warn(`Invalid price range in prediction ${prediction.id}: ${priceRangeValidation.error}`);
+        continue;
+      }
+      const predictionRange: UserPriceRange = priceRangeValidation.data;
 
       if (
         new Decimal(predictionRange.min).eq(winningRange.min) &&
