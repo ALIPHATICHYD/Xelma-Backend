@@ -9,6 +9,7 @@ import request from "supertest";
 import express from "express";
 import educationRoutes from "../routes/education.routes";
 import { prisma } from "../lib/prisma";
+import { errorHandler } from "../middleware/errorHandler.middleware";
 
 const hasDb = Boolean(process.env.DATABASE_URL);
 const describeEducationTip = hasDb ? describe : describe.skip;
@@ -17,6 +18,7 @@ const describeEducationTip = hasDb ? describe : describe.skip;
 const app = express();
 app.use(express.json());
 app.use("/api/education", educationRoutes);
+app.use(errorHandler);
 
 describeEducationTip("GET /api/education/tip - Integration Tests", () => {
   let testRoundId: string | undefined;
@@ -116,7 +118,8 @@ describeEducationTip("GET /api/education/tip - Integration Tests", () => {
       expect(response.body.metadata.outcome).toBe("up");
 
       // Cleanup
-      await prisma.round.delete({ where: { id: highVolatilityRound.id } });
+      await prisma.round.deleteMany({ where: { id: 
+ highVolatilityRound.id } });
     });
 
     it("should handle price decrease correctly", async () => {
@@ -140,7 +143,8 @@ describeEducationTip("GET /api/education/tip - Integration Tests", () => {
       expect(response.body.metadata.outcome).toBe("down");
 
       // Cleanup
-      await prisma.round.delete({ where: { id: decreaseRound.id } });
+      await prisma.round.deleteMany({ where: { id: 
+ decreaseRound.id } });
     });
   });
 
@@ -148,7 +152,7 @@ describeEducationTip("GET /api/education/tip - Integration Tests", () => {
     it("should return 400 when roundId is missing", async () => {
       const response = await request(app).get("/api/education/tip").expect(400);
 
-      expect(response.body.error).toBe("Validation Error");
+      expect(response.body.error).toBe("ValidationError");
       expect(response.body.message).toContain("roundId");
     });
 
@@ -158,7 +162,7 @@ describeEducationTip("GET /api/education/tip - Integration Tests", () => {
         .query({ roundId: "not-a-valid-uuid" })
         .expect(400);
 
-      expect(response.body.error).toBe("Validation Error");
+      expect(response.body.error).toBe("ValidationError");
       expect(response.body.message).toContain("UUID");
     });
 
@@ -168,7 +172,7 @@ describeEducationTip("GET /api/education/tip - Integration Tests", () => {
         .query({ roundId: "" })
         .expect(400);
 
-      expect(response.body.error).toBe("Validation Error");
+      expect(response.body.error).toBe("ValidationError");
     });
   });
 
@@ -181,7 +185,7 @@ describeEducationTip("GET /api/education/tip - Integration Tests", () => {
         .query({ roundId: nonExistentId })
         .expect(404);
 
-      expect(response.body.error).toBe("Not Found");
+      expect(response.body.error).toBe("NotFoundError");
       expect(response.body.message).toBe("Round not found");
     });
   });
@@ -193,7 +197,7 @@ describeEducationTip("GET /api/education/tip - Integration Tests", () => {
         .query({ roundId: unresolvedRoundId })
         .expect(422);
 
-      expect(response.body.error).toBe("Invalid Round State");
+      expect(response.body.error).toBe("BusinessRuleError");
       expect(response.body.message).toContain("resolved");
     });
 
@@ -214,11 +218,12 @@ describeEducationTip("GET /api/education/tip - Integration Tests", () => {
         .query({ roundId: incompletRound.id })
         .expect(422);
 
-      expect(response.body.error).toBe("Invalid Round Data");
+      expect(response.body.error).toBe("BusinessRuleError");
       expect(response.body.message).toContain("price data");
 
       // Cleanup
-      await prisma.round.delete({ where: { id: incompletRound.id } });
+      await prisma.round.deleteMany({ where: { id: 
+ incompletRound.id } });
     });
   });
 
@@ -323,7 +328,8 @@ describeEducationTip("GET /api/education/tip - Integration Tests", () => {
       expect(response.body.metadata.outcome).toBe("unchanged");
 
       // Cleanup
-      await prisma.round.delete({ where: { id: unchangedRound.id } });
+      await prisma.round.deleteMany({ where: { id: 
+ unchangedRound.id } });
     });
 
     it("should handle very short duration rounds", async () => {
@@ -346,7 +352,8 @@ describeEducationTip("GET /api/education/tip - Integration Tests", () => {
       expect(response.body.metadata.duration).toBe(10);
 
       // Cleanup
-      await prisma.round.delete({ where: { id: shortRound.id } });
+      await prisma.round.deleteMany({ where: { id: 
+ shortRound.id } });
     });
 
     it("should handle extreme price movements", async () => {
@@ -372,7 +379,9 @@ describeEducationTip("GET /api/education/tip - Integration Tests", () => {
       ).toBeGreaterThan(10);
 
       // Cleanup
-      await prisma.round.delete({ where: { id: extremeRound.id } });
+      await prisma.round.deleteMany({ where: { id: 
+ extremeRound.id } });
     });
   });
 });
+
