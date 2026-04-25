@@ -9,6 +9,7 @@ import request from "supertest";
 import express from "express";
 import educationRoutes from "../routes/education.routes";
 import { prisma } from "../lib/prisma";
+import { errorHandler } from "../middleware/errorHandler.middleware";
 
 const hasDb = Boolean(process.env.DATABASE_URL);
 const describeEducationTip = hasDb ? describe : describe.skip;
@@ -17,6 +18,7 @@ const describeEducationTip = hasDb ? describe : describe.skip;
 const app = express();
 app.use(express.json());
 app.use("/api/education", educationRoutes);
+app.use(errorHandler);
 
 describeEducationTip("GET /api/education/tip - Integration Tests", () => {
   let testRoundId: string | undefined;
@@ -214,7 +216,7 @@ describeEducationTip("GET /api/education/tip - Integration Tests", () => {
         .query({ roundId: incompletRound.id })
         .expect(422);
 
-      expect(response.body.error).toBe("Invalid Round Data");
+      expect(response.body.error).toBe("BusinessRuleError");
       expect(response.body.message).toContain("price data");
 
       // Cleanup

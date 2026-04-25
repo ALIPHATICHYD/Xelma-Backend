@@ -5,11 +5,21 @@ import { createApp } from '../index';
 import { generateToken } from '../utils/jwt.util';
 import { Express } from 'express';
 import { UserRole } from '@prisma/client';
+import { adminRoundRateLimiter } from '../middleware/rateLimiter.middleware';
 
 describe('Concurrent Round Creation Prevention (Issue #66)', () => {
   let app: Express;
   let adminUser: any;
   let adminToken: string;
+
+  beforeEach(async () => {
+    // Reset rate limiter for the test IP to allow rapid sequential requests
+    adminRoundRateLimiter.resetKey('unknown'); 
+    adminRoundRateLimiter.resetKey(adminUser?.id || 'unknown');
+    
+    // Clear rounds to ensure a pristine state for each test
+    await prisma.round.deleteMany({});
+  });
 
   beforeAll(async () => {
     app = createApp();
@@ -58,8 +68,8 @@ describe('Concurrent Round Creation Prevention (Issue #66)', () => {
         });
 
       expect(res2.status).toBe(409);
-      expect(res2.body.error).toContain('active');
-      expect(res2.body.error).toContain('UP_DOWN');
+      expect(res2.body.message).toContain('active');
+      expect(res2.body.message).toContain('UP_DOWN');
 
       // Cleanup
       await prisma.round.delete({ where: { id: firstRoundId } });
@@ -91,8 +101,8 @@ describe('Concurrent Round Creation Prevention (Issue #66)', () => {
         });
 
       expect(res2.status).toBe(409);
-      expect(res2.body.error).toContain('active');
-      expect(res2.body.error).toContain('LEGENDS');
+      expect(res2.body.message).toContain('active');
+      expect(res2.body.message).toContain('LEGENDS');
 
       // Cleanup
       await prisma.round.delete({ where: { id: firstRoundId } });

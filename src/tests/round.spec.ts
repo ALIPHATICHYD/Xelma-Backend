@@ -96,8 +96,8 @@ describe('Round Management', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
           mode: 1, // LEGENDS
-          startPrice: '0.1234',
-          durationLedgers: 12,
+          startPrice: 0.1234,
+          duration: 300,
         });
 
       expect(res.status).toBe(201);

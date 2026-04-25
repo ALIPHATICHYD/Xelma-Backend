@@ -39,8 +39,8 @@ jest.mock("../lib/prisma", () => ({
   __esModule: true,
   prisma: {
     round: {
-      findMany: jest.fn(),
-      create: jest.fn(),
+      findMany: jest.fn(() => Promise.resolve([])),
+      create: jest.fn((args: any) => Promise.resolve({ id: `mock-round-id-${Math.random()}`, ...(args?.data || {}) })),
       deleteMany: jest.fn(),
     },
     notification: {
