@@ -11,6 +11,18 @@ export interface SorobanHealth {
   hasOracleKey: boolean;
 }
 
+/**
+ * SorobanService handles interaction with the Stellar Soroban smart contracts.
+ * 
+ * FAILURE POLICY:
+ * This service currently implements a "FAIL-OPEN" policy.
+ * If the Soroban integration is not initialized or a contract call fails,
+ * the system is designed to log a warning and proceed with database-only 
+ * operations where possible, ensuring system availability at the cost 
+ * of decentralized verification for those specific operations.
+ * 
+ * Rounds relying on DB-only fallback are marked with `isSoroban: false`.
+ */
 export class SorobanService {
   private client: XelmaClient | null = null;
   private adminKeypair: Keypair | null = null;
